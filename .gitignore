@@ -1,0 +1,14 @@
+# environment
+.venv/
+__pycache__/
+*.pyc
+
+# downloaded corpus (re-fetch with download_data.py)
+data/
+
+# vector index (rebuild with build_index.py)
+chroma/
+
+# scratch output from the verification scripts
+samples/*_out.txt
+samples/*.txt

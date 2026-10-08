@@ -1,0 +1,5 @@
+# Normalise line endings so the repo behaves the same on Windows and Linux.
+# The .py/.md files are text; the scraped .htm samples keep their bytes as-is.
+* text=auto eol=lf
+*.htm -text
+*.sh text eol=lf

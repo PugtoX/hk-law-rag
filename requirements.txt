@@ -1,0 +1,8 @@
+# Python dependencies for hk-law-rag
+# Install:  pip install -r requirements.txt
+#
+# Versions are the ones this project was developed and verified against.
+chromadb>=0.5
+sentence-transformers>=3.0
+# sentence-transformers pulls torch; the CUDA build is used automatically when
+# available. On an 8GB card bge-m3 (~2GB) + an Ollama model must fit together.
