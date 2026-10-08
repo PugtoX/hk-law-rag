@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>hk-law-rag — demo</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --line:#30363d; --fg:#e6edf3;
+          --dim:#8b949e; --ok:#3fb950; --bad:#f85149; --warn:#d29922; --accent:#58a6ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:40px 24px; background:var(--bg); color:var(--fg);
+         font-family:"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif; }
+  .wrap { max-width:960px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 6px; }
+  h1 code { color:var(--accent); font-size:20px; }
+  .sub { color:var(--dim); font-size:14px; margin-bottom:28px; }
+  .sub b { color:var(--fg); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+          margin-bottom:18px; overflow:hidden; }
+  .card > header { padding:10px 16px; border-bottom:1px solid var(--line);
+                   font-size:13px; color:var(--dim); display:flex;
+                   justify-content:space-between; align-items:center; }
+  .tag { font-size:11px; padding:2px 8px; border-radius:999px; font-weight:600; }
+  .tag.bad  { color:var(--bad);  background:rgba(248,81,73,.12); }
+  .tag.ok   { color:var(--ok);   background:rgba(63,185,80,.12); }
+  .tag.warn { color:var(--warn); background:rgba(210,153,34,.12); }
+  pre { margin:0; padding:16px; white-space:pre-wrap; word-break:break-word;
+        font-family:"Cascadia Code",Consolas,"SF Mono",monospace;
+        font-size:13px; line-height:1.65; }
+  .q { color:var(--accent); }
+  .cite { color:var(--ok); font-weight:600; }
+  .note { color:var(--dim); }
+  .key { color:var(--warn); }
+  footer { color:var(--dim); font-size:12.5px; line-height:1.8; margin-top:28px;
+           border-top:1px solid var(--line); padding-top:16px; }
+  footer code { color:var(--fg); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1><code>hk-law-rag</code> — 香港僱傭條例問答助手</h1>
+  <div class="sub">
+    檢索增強問答：84 組官方 FAQ 問答對 · bge-m3 + Chroma · qwen3.5 (Ollama)<br>
+    評測：回歸 <b>recall@5 = 100%</b>（84/84）· 口語問法 <b>recall@5 = 93.3%</b>（14/15）
+  </div>
+
+  <div class="card">
+    <header><span><span class="q">同一條問題</span>，直接問模型（無檢索）</span>
+            <span class="tag bad">法域錯誤</span></header>
+    <pre><span class="note">$ python answer.py --no-rag "休息日有薪水嗎？"</span>
+
+這取決於您的**休假類型**以及**工作性質**……在<span class="key">台灣勞工法規（勞動基準法）</span>的架構下：
+
+### 2. 特別休假（特休）
+如果您使用「特別休假」，這天是**有薪水**的。法律規定雇主必須給付……
+
+<span class="note">→ 答案引用了台灣《勞基法》與「特休」，對香港完全錯誤。
+  訓練資料沒有「香港僱傭條例」這個高頻法域，模型只能從最相近的中文勞動法裡挑。</span></pre>
+  </div>
+
+  <div class="card">
+    <header><span>經過檢索（只依據香港《僱傭條例》條文）</span>
+            <span class="tag ok">正確 + 引用</span></header>
+    <pre><span class="note">$ python answer.py "休息日有薪水嗎？"</span>
+
+休息日是否有薪，由僱傭合約或勞資雙方協議決定，法例並沒有規定必須有薪 <span class="cite">[1]、[2]</span>。
+
+<span class="note">$ python answer.py --debug "休息日有薪水嗎？"   # 引用來源</span>
+<span class="note">[debug] best distance = 0.5389 (gate = 0.95)
+        0.5389  [最低工資：工資項目] 僱員的休息日是否有薪？是否須用法定最低工資水平計算休息日薪酬？
+        0.5934  [休息日] 休息日是否規定有薪？</span>
+
+<span class="note">--- 引用到的條文 ---
+  [1] smw_wage_items.htm 問3  僱員的休息日是否有薪？……
+  [2] cap57e.htm 問3  休息日是否規定有薪？</span></pre>
+  </div>
+
+  <div class="card">
+    <header><span>知識庫未涵蓋的問題</span>
+            <span class="tag warn">拒答而非編造</span></header>
+    <pre><span class="note">$ python answer.py "工作日加班有加班费吗？"</span>
+
+資料庫中沒有關於「工作日」加班費的具體規定，只提及休息日和法定假日的相關安排。
+
+<span class="note">→ 香港《僱傭條例》本身沒有法定加班費規定，系統正確拒答。
+  它沒有編造，而是說明「看到什麼、沒看到什麼」。</span></pre>
+  </div>
+
+  <div class="card">
+    <header><span>完全無關的問題</span>
+            <span class="tag bad">代碼層硬門禁</span></header>
+    <pre><span class="note">$ python answer.py --debug "今天天气怎么样？"</span>
+
+<span class="note">[debug] best distance = 1.2090 (gate = 0.95)</span>
+=== 今天天气怎么样？ ===
+資料庫中沒有相關規定（檢索相似度不足，<span class="key">未呼叫模型</span>）。
+
+<span class="note">→ 兩層防幻覺：代碼層距離門禁（未呼叫模型）+ 提示詞約束（資料未涵蓋時拒答）。
+  實測兩層缺一不可 —— 「加班費」那題距離 0.70，門禁放行，是模型自己判斷出資料不足。</span></pre>
+  </div>
+
+  <footer>
+    <b>技術棧</b> Python · bge-m3 · ChromaDB · Ollama (qwen3.5:9b) · 純 urllib 呼叫 API<br>
+    <b>語料</b> 香港勞工處公開 FAQ：Cap.57《僱傭條例》14 頁 + Cap.608《最低工資條例》2 頁<br>
+    <b>倉庫</b> <code>github.com/PugtoX/hk-law-rag</code> · MIT License · 本專案僅供技術學習，不構成法律意見
+  </footer>
+
+</div>
+</body>
+</html>

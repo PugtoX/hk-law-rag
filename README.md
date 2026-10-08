@@ -1,5 +1,11 @@
 # 香港僱傭條例問答助手 (HK Employment Ordinance RAG)
 
+[![CI](https://github.com/PugtoX/hk-law-rag/actions/workflows/ci.yml/badge.svg)](https://github.com/PugtoX/hk-law-rag/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Python](https://img.shields.io/badge/python-3.12%2B-blue)
+
+![demo](demos/demo.png)
+
 一個針對香港《僱傭條例》的檢索增強問答系統。用戶用口語提問,系統只根據勞工處官方
 FAQ 的條文回答,並標明依據的條文編號;資料庫沒涵蓋的問題會明確拒答,而不是編造。
 

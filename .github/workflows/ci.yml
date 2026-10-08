@@ -1,0 +1,36 @@
+name: CI
+
+# Every step is either a syntax check or a script that stubs chromadb /
+# sentence-transformers with MagicMock. So this job installs NO third-party
+# packages and needs no GPU — it runs in well under a minute by design.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Syntax-check every Python file
+        run: python -m py_compile $(git ls-files '*.py')
+
+      - name: Run verification scripts
+        run: |
+          for f in samples/verify_*.py; do
+            echo "::group::$f"
+            python "$f"
+            echo "::endgroup::"
+          done
+
+      - name: README mentions the measured results
+        run: |
+          grep -q "93.3%" README.md
+          grep -q "84" README.md

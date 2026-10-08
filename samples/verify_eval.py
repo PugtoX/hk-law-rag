@@ -71,7 +71,7 @@ out = buf.getvalue()
 print(out)
 
 checks = {
-    "recall line": "recall@1 = 2/4 = 50.0%" in out,
+    "recall line": "recall@1 (by question) = 2/4 = 50.0%" in out,
     "Q1 miss": "MISS: Q1" in out,
     "Q3 miss": "MISS: Q3" in out,
     "no false miss on Q0": "MISS: Q0" not in out,
