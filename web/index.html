@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>香港僱傭條例問答助手</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif; }
+  .mono { font-family: Consolas, "SF Mono", monospace; }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased">
+<div class="max-w-3xl mx-auto px-5 py-10">
+
+  <h1 class="text-2xl font-bold tracking-tight">香港僱傭條例問答助手</h1>
+  <p class="text-slate-400 text-sm mt-2 leading-relaxed">
+    只根據勞工處官方 FAQ 的 84 組條文回答，並標明出處；資料庫沒涵蓋的問題會明確拒答，而不是編造。
+  </p>
+
+  <div class="mt-6 flex gap-2">
+    <input id="q" autocomplete="off"
+           class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-[15px]
+                  placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
+           placeholder="例如：休息日有薪水嗎？">
+    <button id="go"
+            class="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 rounded-lg px-6 py-3
+                   font-medium whitespace-nowrap">提問</button>
+  </div>
+
+  <div id="samples" class="mt-3 flex flex-wrap gap-2"></div>
+
+  <div id="out" class="mt-8 space-y-4"></div>
+
+  <footer class="mt-12 pt-5 border-t border-slate-800 text-xs text-slate-500 leading-relaxed">
+    <span id="meta" class="mono"></span><br>
+    檢索 bge-m3 + Chroma · 生成 qwen3.5 (Ollama) ·
+    <a class="text-slate-400 hover:text-slate-200 underline" target="_blank"
+       href="https://github.com/PugtoX/hk-law-rag">GitHub</a><br>
+    本工具僅供技術學習，不構成法律意見。
+  </footer>
+</div>
+
+<script>
+const SAMPLES = [
+  "休息日有薪水嗎？",
+  "試用期被辭退有賠償嗎？",
+  "做滿一年有多少天年假？",
+  "工作日加班有加班費嗎？",
+  "今天天氣怎麼樣？",
+];
+const out = document.getElementById("out");
+const input = document.getElementById("q");
+const go = document.getElementById("go");
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+SAMPLES.forEach(text => {
+  const b = document.createElement("button");
+  b.textContent = text;
+  b.className = "text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800 " +
+                "rounded-full px-3 py-1 text-slate-400 hover:text-slate-200";
+  b.onclick = () => { input.value = text; ask(); };
+  document.getElementById("samples").appendChild(b);
+});
+
+async function ask() {
+  const question = input.value.trim();
+  if (!question) return;
+  go.disabled = true;
+  out.innerHTML = '<div class="text-slate-500 text-sm">檢索中…</div>';
+  try {
+    const r = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
+    render(await r.json());
+  } catch (e) {
+    out.innerHTML = `<div class="text-rose-400 text-sm">請求失敗：${esc(e.message)}</div>`;
+  } finally {
+    go.disabled = false;
+  }
+}
+
+function render(d) {
+  let html = "";
+
+  if (d.answer) {
+    html += `<div class="bg-slate-900 border border-emerald-900/70 rounded-xl p-5">
+      <div class="text-xs text-emerald-400 mb-2">答案 · 依檢索條文生成並附出處</div>
+      <div class="leading-relaxed whitespace-pre-wrap text-[15px]">${esc(d.answer)}</div>
+    </div>`;
+  } else if (d.refused) {
+    html += `<div class="bg-slate-900 border border-amber-900/70 rounded-xl p-5">
+      <div class="text-xs text-amber-400 mb-2">拒答 · 未呼叫模型</div>
+      <div class="leading-relaxed text-[15px]">${esc(d.reason || "資料庫中沒有相關規定")}</div>
+      <div class="text-xs text-slate-500 mono mt-2">
+        最近距離 ${esc(d.best_distance)}（門禁 ${esc(d.gate)}）</div>
+    </div>`;
+  } else if (d.error) {
+    html += `<div class="bg-slate-900 border border-rose-900/70 rounded-xl p-5
+                        text-rose-300 text-sm">生成失敗：${esc(d.error)}</div>`;
+  }
+
+  if (d.hits && d.hits.length) {
+    html += `<div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+      <div class="text-xs text-slate-400 mb-3">檢索到的條文（top ${d.hits.length}）</div>
+      <div class="space-y-3">`;
+    for (const h of d.hits) {
+      html += `<div class="border-l-2 border-slate-700 pl-3">
+        <div class="text-xs text-slate-500 mono">
+          ${esc(h.topic)} · ${esc(h.source)} 問${esc(h.qno)} · 距離 ${esc(h.distance)}</div>
+        <div class="text-sm text-slate-200 mt-1">${esc(h.question)}</div>
+        <div class="text-xs text-slate-400 mt-1 leading-relaxed">${esc(h.answer.slice(0, 180))}…</div>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  out.innerHTML = html || '<div class="text-slate-500 text-sm">沒有結果</div>';
+}
+
+go.onclick = ask;
+input.addEventListener("keydown", e => { if (e.key === "Enter") ask(); });
+
+fetch("/api/health").then(r => r.json()).then(h => {
+  document.getElementById("meta").textContent =
+    `${h.pairs} 組條文 · 檢索 ${h.embed_model} · 生成 ${h.gen_model}` +
+    (h.generation_ready ? "" : "（未設定生成後端，僅檢索）");
+}).catch(() => {});
+</script>
+</body>
+</html>

@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # One-shot setup + run. From the project root:
-#     bash run.sh "休息日有薪水嗎？"
-#     bash run.sh                         # interactive
+#     bash run.sh "休息日有薪水嗎？"      # ask one question
+#     bash run.sh                         # interactive CLI
+#     bash run.sh web                     # serve the web UI on :8000
+#     PORT=9000 bash run.sh web
 set -euo pipefail
 cd "$(dirname "$0")"
+
+MODE="${1:-cli}"
+[ "$MODE" = "web" ] && shift || true
 
 MODEL="${RAG_MODEL:-qwen3.5:9b}"
 
@@ -26,9 +31,15 @@ if [ ! -d chroma ]; then
   python build_index.py
 fi
 
-# 3) generation model
+# 3) web mode needs the API deps but no Ollama check here
+if [ "$MODE" = "web" ]; then
+  PORT="${PORT:-8000}"
+  echo "[run] serving on http://localhost:$PORT  (Ctrl-C to stop)"
+  exec uvicorn app:app --host 0.0.0.0 --port "$PORT"
+fi
+
+# 4) CLI mode: make sure the local generation model is present, then ask
 ollama list 2>/dev/null | grep -q "${MODEL%%:*}" \
   || { echo "[setup] pulling $MODEL"; ollama pull "$MODEL"; }
 
-# 4) answer
 exec python answer.py --model "$MODEL" "$@"

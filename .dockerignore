@@ -1,0 +1,11 @@
+# Build context exclusions — the image rebuilds the corpus and index itself.
+.git
+.github
+.venv
+__pycache__
+*.pyc
+chroma
+data
+demos
+samples
+*.md

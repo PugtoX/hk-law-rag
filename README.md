@@ -108,6 +108,53 @@ python eval_real_queries.py              # 口語問法，預期 14/15
 
 ---
 
+## 部署
+
+檢索用的 bge-m3 只有約 2GB，**在 CPU 上就能跑** —— 所以上雲的唯一難題是「生成那一步放哪」。
+`app.py` 因此把生成後端做成可切換的：
+
+| `LLM_PROVIDER` | 生成來自 | 適用 |
+|---|---|---|
+| `ollama`（預設） | 本機 Ollama | 本地開發 |
+| `openai` | 任何 OpenAI 相容端點（Groq 等免費額度） | 雲端部署 |
+
+**沒配置生成後端時，網站仍可用** —— 降級為「只顯示檢索到的條文」，不會報錯。
+
+### 本機 Web
+
+```bash
+pip install -r requirements.txt
+bash run.sh web                 # → http://localhost:8000
+PORT=9000 bash run.sh web       # 換端口
+```
+
+### Docker
+
+```bash
+docker build -t hk-law-rag .    # 語料與索引在 build 時建好，bge-m3 也烤進鏡像
+docker run -p 7860:7860 hk-law-rag                      # 只檢索（容器內沒有 Ollama）
+docker run -p 7860:7860 \
+  -e LLM_PROVIDER=openai -e OPENAI_KEY=gsk_... \
+  -e OPENAI_MODEL=llama-3.3-70b-versatile hk-law-rag     # 完整問答
+```
+
+### Hugging Face Spaces（免費，Docker SDK）
+
+1. 建一個 **Docker** Space（硬體選免費 CPU 即可）
+2. 把本倉庫推上去：
+   ```bash
+   git remote add space https://huggingface.co/spaces/<用戶名>/hk-law-rag
+   git push space main
+   ```
+3. 在 Space 的 **Settings → Variables and secrets** 加 `OPENAI_KEY`（及可選的
+   `LLM_PROVIDER=openai`、`OPENAI_MODEL`）
+4. Space 會依 `Dockerfile` 建置；首次建置需下載 bge-m3（約 2GB），之後啟動很快
+
+> HF Spaces 需要 README 頂部有 YAML frontmatter（`sdk: docker`、`app_port: 7860`）。
+> 若不想改動這份 README，可在 Space 倉庫裡單獨加。
+
+---
+
 ## 檔案
 
 | 檔案 | 作用 |
@@ -115,11 +162,14 @@ python eval_real_queries.py              # 口語問法，預期 14/15
 | `download_data.py` | 抓取勞工處 16 頁 FAQ（公開政府資料） |
 | `build_index.py` | 解析 → 編碼 → 建 Chroma 索引 |
 | `search.py` | 純檢索（不含生成） |
-| `answer.py` | 檢索 + 生成 + 引用 + 拒答 |
+| `answer.py` | 檢索 + 生成 + 引用 + 拒答（CLI） |
+| `app.py` | Web API（同一套檢索/生成，生成後端可切換） |
+| `web/index.html` | 單頁前端 |
+| `Dockerfile` | 容器化（HF Spaces / 任意 Docker 主機） |
 | `eval_retrieval.py` | 回歸測試（原題查原題） |
 | `eval_real_queries.py` | 口語問法基準測試（含答案鍵） |
 | `show_pair.py` | 查詢某一組問答，用於核對答案鍵 |
-| `samples/verify_*.py` | 各模組的驗證腳本（stub 掉模型與向量庫） |
+| `samples/verify_*.py` | 各模組的驗證腳本（stub 掉模型與向量庫），CI 會全部執行 |
 
 ---
 
